@@ -42,27 +42,4 @@ Follow these steps to set up the Gemma-3-270M benchmarking environment:
 
 ---
 
-### ✅ Running Baseline Benchmarks
-
-Once activated, you can run the benchmark scripts directly to evaluate the **vanilla Gemma-3-270M** model on the three datasets:
-
-```bash
-python -m src.eval.eval_triviaqa --ckpt google/gemma-3-270m
-python -m src.eval.eval_arc_c --ckpt google/gemma-3-270m
-python -m src.eval.eval_ifeval --ckpt google/gemma-3-270m
-```
-
-Each script loads the dataset automatically and reports the model’s baseline performance:
-
-- **TriviaQA** → Exact Match (EM) / F1  
-- **ARC-Challenge** → Multiple-choice Accuracy  
-- **IFEval** → Instruction-following rule compliance rate  
-
----
-
-### 🧩 Notes
-
-- The setup script installs everything needed for inference and benchmarking, including Hugging Face Transformers, Datasets, Accelerate, and PyTorch.  
-- You can re-run `python3 setup.py --cuda` anytime to update dependencies or switch to a GPU build.  
-- For custom models or fine-tuned checkpoints, replace `--ckpt google/gemma-3-270m` with your local path.
 
