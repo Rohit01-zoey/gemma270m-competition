@@ -1,5 +1,6 @@
 # File for evaluating Gemma model on the ARC-C challenge
-# run using eval/script/arc_c.sh 
+# run using eval/script/arc_c.sh [!TODO]
+
 import argparse
 from datasets import load_dataset
 from model_io import load_model, generate_greedy
@@ -18,6 +19,10 @@ def main():
     args = ap.parse_args()
 
     tok, model, device = load_model(args.ckpt)
+
+    if args.split!="test":
+        print(f"[WARNING] Running EVAL on {args.split} split")
+
     ds = load_dataset("ai2_arc", "ARC-Challenge")[args.split]
     if args.limit:
         ds = ds.select(range(min(args.limit, len(ds))))
@@ -40,8 +45,7 @@ def main():
     preds = [extract_letter(g) or "" for g in gens]
     acc = sum(int(p == g) for p, g in zip(preds, answers)) / len(answers)
 
-    print(f"ARC-Challenge ({args.split}) with N={len(preds)} samples")
-    print(f"Accuracy: {acc:.4f}")
+    print(f"ARC-Challenge on **{args.split}** split with N={len(preds)} samples:: Accuracy={acc:.4f}")
 
     ######## logging code below ##########
 
