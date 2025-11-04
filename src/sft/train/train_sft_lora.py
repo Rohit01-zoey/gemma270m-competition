@@ -8,7 +8,7 @@ from datasets import Dataset
 from transformers import (
     AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
 )
-from peft import LoraConfig, get_peft_model, TaskType
+from peft import LoraConfig, get_peft_model, TaskType, PeftModel, PeftConfig
 from .collator import SFTDataCollator
 
 LOG = logging.getLogger("sft")
@@ -60,6 +60,8 @@ def main() -> None:
     ap.add_argument("--lora_r", type=int, default=16)
     ap.add_argument("--lora_alpha", type=int, default=32)
     ap.add_argument("--lora_dropout", type=float, default=0.1)
+    ap.add_argument("--resume_adapter", default=None,
+                help="Path to a previous LoRA adapter checkpoint to continue training from (e.g., checkpoints/sft/checkpoint-2600)")
 
     args = ap.parse_args()
 
@@ -83,15 +85,21 @@ def main() -> None:
     # ---------------------------------------------------------
     # LoRA adapter
     # ---------------------------------------------------------
-    lconf = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        bias="none",
-        target_modules=["q_proj","k_proj","v_proj","o_proj","up_proj","down_proj","gate_proj"],
-    )
-    model = get_peft_model(base, lconf)
+    
+    if args.resume_adapter:
+        # continue training previous LoRA adapter
+        model = PeftModel.from_pretrained(base, args.resume_adapter)
+    else:
+        # new LoRA adapter
+        lconf = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            target_modules=["q_proj","k_proj","v_proj","o_proj","up_proj","down_proj","gate_proj"],
+        )
+        model = get_peft_model(base, lconf)
     model.print_trainable_parameters()
 
     # Optimize for stability & memory

@@ -1,0 +1,17 @@
+checkpoint,aggregate,arc_acc,trivia_em,trivia_f1,flan_em,flan_f1,seconds
+checkpoints\sft_continued\checkpoint-1600,0.2012,0.3095,0.0952,0.1095,0.0000,0.1162,20.3
+checkpoints\sft_continued\checkpoint-1800,0.1937,0.3095,0.0714,0.0857,0.0000,0.1149,15.9
+checkpoints\sft_continued\checkpoint-2200,0.1911,0.2857,0.0952,0.1095,0.0000,0.1189,16.4
+checkpoints\sft_continued\checkpoint-3200,0.1885,0.2857,0.0952,0.1095,0.0000,0.1083,16.5
+checkpoints\sft_continued\checkpoint-3000,0.1875,0.2857,0.0952,0.1095,0.0000,0.1043,16.0
+checkpoints\sft_continued\checkpoint-2400,0.1820,0.2857,0.0714,0.0873,0.0000,0.1088,15.8
+checkpoints\sft_continued\checkpoint-2800,0.1816,0.2857,0.0714,0.0857,0.0000,0.1093,15.8
+checkpoints\sft_continued\checkpoint-2000,0.1788,0.2857,0.0714,0.0767,0.0000,0.1088,15.3
+checkpoints\sft_continued\checkpoint-3600,0.1689,0.2381,0.0952,0.1095,0.0000,0.1154,16.3
+checkpoints\sft_continued\checkpoint-4236,0.1689,0.2381,0.0952,0.1095,0.0000,0.1154,16.3
+checkpoints\sft_continued\sft_final,0.1689,0.2381,0.0952,0.1095,0.0000,0.1154,16.1
+checkpoints\sft_continued\checkpoint-3800,0.1662,0.2381,0.0952,0.1095,0.0000,0.1048,16.1
+checkpoints\sft_continued\checkpoint-4000,0.1662,0.2381,0.0952,0.1095,0.0000,0.1048,15.9
+checkpoints\sft_continued\checkpoint-2600,0.1661,0.2381,0.0952,0.1095,0.0000,0.1043,16.4
+checkpoints\sft_continued\checkpoint-4200,0.1555,0.2143,0.0952,0.1095,0.0000,0.1048,16.0
+checkpoints\sft_continued\checkpoint-3400,0.1492,0.2143,0.0714,0.0857,0.0000,0.1083,16.3
