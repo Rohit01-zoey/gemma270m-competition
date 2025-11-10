@@ -1,0 +1,1 @@
+python -m src.sft.eval.eval_light ^  --ckpt checkpoints/sft/checkpoint-2600 ^   --base_model google/gemma-3-270m ^  --dev_file data/sft_dev.jsonl ^  --max_eval 128 ^  --bs 2 ^  --max_new_tokens 8 ^  --dtype bf16        
