@@ -208,6 +208,23 @@ __marimo__/
 
 
 
+# Data directories (in any subdirectory)
+**/data/
+data/
+
+# Model outputs and submissions
+# **/outputs/
+# outputs/
+# **/submissions/
+# submissions/
+# submissions.zip
+
+# Training artifacts
+**/wandb/
+wandb/
+**/runs/
+runs/
+
 # datasets
 *.json
 *.tar
