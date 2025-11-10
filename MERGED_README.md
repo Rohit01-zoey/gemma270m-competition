@@ -4,6 +4,62 @@ This repository now contains both:
 1. **Training code** (original gemma270m-competition)
 2. **Evaluation code** (from cs590-slm-main TA starter code)
 
+## Environment Setup
+
+**Prerequisites:** Python >= 3.12
+
+### Option 1: Automated setup.py (Recommended for conda users)
+
+```bash
+# For CPU-only (development/testing)
+python setup.py
+
+# For CUDA/GPU support (training)
+python setup.py --cuda
+
+# Use mamba for faster installation (if available)
+python setup.py --cuda --mamba
+```
+
+### Option 2: Using pip with pyproject.toml
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install PyTorch with CUDA first (for GPU training)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install the package and all dependencies
+pip install -e .
+
+# Install cs590_eval packages
+cd cs590_eval
+pip install -e .
+pip install -e ./ifeval
+cd ..
+```
+
+### Option 3: Using requirements.txt [I used this]
+
+```bash
+# Create virtual environment
+conda create -n YOURNAME python=3.12
+
+# Install PyTorch with CUDA
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Install all dependencies
+pip install -r requirements.txt
+
+# Install cs590_eval packages
+cd cs590_eval
+pip install -e .
+pip install -e ./ifeval
+cd ..
+```
+
 ## Directory Structure
 
 ```

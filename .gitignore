@@ -234,3 +234,5 @@ runs/
 
 # other folders
 *.txt
+
+slurm-*.out

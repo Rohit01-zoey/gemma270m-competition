@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemma270m-competition"
+version = "0.1.0"
+description = "Training & eval pipeline for Gemma-3-270M on TriviaQA, ARC-C, IFEval"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["llm", "gemma", "fine-tuning", "nlp"]
+
+dependencies = [
+    # Core ML stack
+    "torch>=2.0.0",
+    "transformers>=4.44.0",
+    "datasets>=2.20.0",
+    "accelerate>=0.33.0",
+    "peft>=0.12.0",
+    "evaluate>=0.4.2",
+    "sentencepiece>=0.2.0",
+
+    # Data processing
+    "numpy",
+    "pandas",
+    "pyarrow",
+    "scikit-learn>=1.4.0",
+
+    # Utilities
+    "tqdm>=4.67.1",
+    "rich",
+    "pyyaml",
+    "jinja2",
+    "msgspec",
+    "rapidfuzz",
+    "regex",
+
+    # Retrieval (BM25 / TF-IDF)
+    "rank-bm25>=0.2.2",
+
+    # Mixed precision / utils
+    "einops>=0.8.0",
+
+    # System utilities
+    "psutil",
+    "uvicorn",
+]
+
+[project.optional-dependencies]
+# Optional: for QLoRA 4-bit/8-bit quantization (Linux only)
+quantization = [
+    "bitsandbytes>=0.44.1",
+]
+
+# Development tools
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+# All optional dependencies
+all = [
+    "gemma270m-competition[quantization,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/gemma270m-competition"
+Repository = "https://github.com/yourusername/gemma270m-competition"
+Issues = "https://github.com/yourusername/gemma270m-competition/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = {find = {where = ["src"]}}
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

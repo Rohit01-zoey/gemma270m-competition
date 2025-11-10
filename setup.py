@@ -2,13 +2,14 @@
 import os, sys, shutil, subprocess, argparse, platform
 
 # ---- Detect setuptools invocation (pip calling egg_info, build, sdist, etc.) ----
-SETUPTOOLS_COMMANDS = {"egg_info","build","bdist_wheel","sdist","install","develop"}
+SETUPTOOLS_COMMANDS = {"egg_info","build","bdist_wheel","sdist","install","develop","dist_info","editable_wheel"}
 
-if any(cmd in sys.argv for cmd in SETUPTOOLS_COMMANDS):
+# Check if this is being run by pip/setuptools
+if any(cmd in sys.argv for cmd in SETUPTOOLS_COMMANDS) or "--output-dir" in sys.argv:
     # Minimal packaging fallback so pip -e . works
     from setuptools import setup, find_packages
     setup(
-        name="gemma270m-competitions",
+        name="gemma270m-competition",
         version="0.1.0",
         description="Training & eval pipeline for Gemma-3-270M on TriviaQA, ARC-C, IFEval",
         packages=find_packages(where="src"),

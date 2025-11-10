@@ -1,11 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "slm"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "datasets>=4.4.0",
-    "torch>=2.8.0",
+    "torch>=2.0.0",
     "tqdm>=4.67.1",
     "transformers>=4.55.4",
     "accelerate>=1.10.0",
 ]
+
+[tool.setuptools]
+py-modules = ["pipelines", "generate", "score", "eval", "submit", "download_eval_data"]
+
+[tool.setuptools.packages.find]
+exclude = ["data*", "outputs*", "ifeval*"]
