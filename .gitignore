@@ -239,3 +239,7 @@ slurm-*.out
 
 checkpoints
 checkpoints/*
+
+fft/data
+fft/sft_output_stage2
+*.out
