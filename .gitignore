@@ -236,3 +236,6 @@ runs/
 *.txt
 
 slurm-*.out
+
+checkpoints
+checkpoints/*
