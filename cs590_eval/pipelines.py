@@ -5,6 +5,8 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizerBase
 from tqdm import tqdm
 from collections import Counter
+from rule_based_router import route_question
+from model_config import MODEL_MAP
 
 # try:
 #     from vllm import LLM, SamplingParams
@@ -200,16 +202,10 @@ class RouterPipeline(BasePipeline):
 
     def _router(self, item: Dict[str, Any]) -> str:
         """
-        if you would like to use a router-based pipeline, you need to implement this function and train your own router
-        For now, we just return the task type as illustration, you can NOT use the task type to route the pipeline
+        Route questions to task type using rule-based router.
+        Uses keyword matching to classify: reasoning, factual_qa, or instruction_following
         """
-        task_type = item.get("task_type", "factual_qa").lower()
-        task_type_map = {
-            "triviaqa": "factual_qa",
-            "arc-c": "reasoning",
-            "ifeval": "instruction_following",
-        }
-        return task_type_map.get(task_type, "factual_qa")
+        return route_question(item)
 
     def run_with_router(
         self,
@@ -259,6 +255,104 @@ class RouterPipeline(BasePipeline):
             logic: Optional[ProcessLogic] = None,
             **gen_kwargs) -> List[str]:
         return self.run_with_router(items, self._router, **gen_kwargs)
+
+
+class MultiModelRouterPipeline(BasePipeline):
+    """
+    Router pipeline that uses different models for different task types.
+    Models are configured in model_config.py MODEL_MAP.
+    """
+    def __init__(self, model_name: str = None):
+        """
+        Initialize with task-specific models from MODEL_MAP.
+
+        Args:
+            model_name: Ignored (kept for compatibility), uses MODEL_MAP instead
+        """
+        # Don't call super().__init__ - we'll manage multiple models
+        self.task_models = {}
+        self.task_tokenizers = {}
+
+        print("Loading task-specific models from MODEL_MAP...")
+        for task_type, model_path in MODEL_MAP.items():
+            print(f"  {task_type}: {model_path}")
+            self.task_models[task_type] = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype=torch.bfloat16, device_map="auto"
+            )
+            self.task_tokenizers[task_type] = AutoTokenizer.from_pretrained(model_path)
+            if self.task_tokenizers[task_type].pad_token is None:
+                self.task_tokenizers[task_type].pad_token = self.task_tokenizers[task_type].eos_token
+
+    def _router(self, item: Dict[str, Any]) -> str:
+        """Route questions to task type using rule-based router."""
+        return route_question(item)
+
+    def _generate_for_task(self, task_type: str, prompts: List[str],
+                          max_new_tokens: int, do_sample: bool,
+                          temperature: float, top_p: float, batch_size: int) -> List[str]:
+        """Generate using task-specific model."""
+        model = self.task_models.get(task_type, self.task_models["factual_qa"])
+        tokenizer = self.task_tokenizers.get(task_type, self.task_tokenizers["factual_qa"])
+
+        return _batched_generate_hf(
+            model, tokenizer, prompts,
+            max_new_tokens=max_new_tokens,
+            do_sample=do_sample,
+            temperature=temperature,
+            top_p=top_p,
+            batch_size=batch_size,
+        )
+
+    def run(
+        self,
+        items: List[Dict[str, Any]],
+        logic: Optional[ProcessLogic] = None,
+        batch_size: int = 16,
+        max_new_tokens: int = 128,
+        do_sample: bool = False,
+        temperature: float = 0.7,
+        top_p: float = 0.95,
+    ) -> List[str]:
+        # Group items by task type
+        groups: Dict[str, List[int]] = {}
+        for idx, item in enumerate(items):
+            task_type = self._router(item)
+            groups.setdefault(task_type, []).append(idx)
+
+        # Default logic map
+        logic_map = {
+            "factual_qa": FactualQAProcessor(),
+            "reasoning": ReasoningProcessor(),
+            "instruction_following": InstructionFollowingProcessor(),
+        }
+
+        outputs: List[Optional[str]] = [None] * len(items)
+
+        for task_type, idxs in groups.items():
+            sub_items = [items[i] for i in idxs]
+            task_logic = logic_map.get(task_type, FactualQAProcessor())
+            tokenizer = self.task_tokenizers.get(task_type, self.task_tokenizers["factual_qa"])
+
+            # Preprocess with task-specific tokenizer
+            prompts = task_logic.preprocess(sub_items, tokenizer)
+
+            # Generate with task-specific model
+            raw = self._generate_for_task(
+                task_type, prompts,
+                max_new_tokens=max_new_tokens,
+                do_sample=do_sample,
+                temperature=temperature,
+                top_p=top_p,
+                batch_size=batch_size,
+            )
+
+            # Postprocess
+            preds = task_logic.postprocess(raw, sub_items)
+
+            for i, p in zip(idxs, preds):
+                outputs[i] = p
+
+        return [o if o is not None else "" for o in outputs]
 
 
 class SelfConsistencyPipeline(RouterPipeline):
