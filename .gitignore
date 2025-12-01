@@ -243,3 +243,12 @@ checkpoints/*
 fft/data
 fft/sft_output_stage2
 *.out
+
+
+*.jinja
+*.python
+*.pt
+*.pth
+*.bin
+*.zip
+*.safetensors
