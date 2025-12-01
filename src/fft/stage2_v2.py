@@ -1,14 +1,50 @@
 from __future__ import annotations
-import argparse
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-
-from datasets import load_dataset, Dataset
-from trl import SFTConfig, SFTTrainer, setup_chat_format 
+from typing import List, Dict, Any
+from datasets import Dataset
+from trl import SFTConfig, SFTTrainer
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from dataclasses import dataclass
+
+# Custom collator (use this if import fails)
+@dataclass
+class DataCollatorForCompletionOnlyLM:
+    tokenizer: Any
+    response_template: str
+
+    def __post_init__(self):
+        self.response_template_ids = self.tokenizer.encode(
+            self.response_template, add_special_tokens=False
+        )
+
+    def __call__(self, examples: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        batch = self.tokenizer.pad(
+            examples,
+            return_tensors="pt",
+            padding=True,
+        )
+        labels = batch["input_ids"].clone()
+
+        for i, input_ids in enumerate(batch["input_ids"]):
+            response_start = self._find_response_start(input_ids.tolist())
+            if response_start is not None:
+                labels[i, :response_start] = -100
+            else:
+                labels[i, :] = -100
+
+        labels[labels == self.tokenizer.pad_token_id] = -100
+        batch["labels"] = labels
+        return batch
+
+    def _find_response_start(self, input_ids: List[int]) -> int | None:
+        template_len = len(self.response_template_ids)
+        for i in range(len(input_ids) - template_len + 1):
+            if input_ids[i:i + template_len] == self.response_template_ids:
+                return i + template_len
+        return None
+
 
 def load_jsonl(path: str | Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -20,36 +56,44 @@ def load_jsonl(path: str | Path) -> List[Dict[str, Any]]:
             rows.append(json.loads(ln))
     return rows
 
+
 def main():
-    # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Load dataset
-    # dataset = load_dataset("HuggingFaceTB/smol-smoltalk")
-    dataset ={}
+    dataset = {}
     train_rows = load_jsonl("/usr/xtmp/rkv6/projects/gemma270m-competition/src/fft/data/stage2_v2/stage2_train.jsonl")
     test_rows = load_jsonl("/usr/xtmp/rkv6/projects/gemma270m-competition/src/fft/data/stage2_v2/stage2_eval.jsonl")
-
     dataset["train"] = Dataset.from_list(train_rows)
     dataset["test"] = Dataset.from_list(test_rows)
-    # Configure model and tokenizer
-    model_name = "google/gemma-3-270m"
-    ckpt = "/usr/xtmp/rkv6/projects/gemma270m-competition/src/fft/sft_output/checkpoint-20000"
-    model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=ckpt).to(
-        device
-    )
-    tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=ckpt)
-    
-    def formatting_func(example):
-        return [
-            tokenizer.apply_chat_template(
-                example["messages"],
-                tokenize=False,
-                add_generation_prompt=False,  # assistant message already included
-            )
-        ]
 
-    # Configure trainer
+    ckpt = "/usr/xtmp/rkv6/projects/gemma270m-competition/src/fft/sft_output/checkpoint-20000"
+    model = AutoModelForCausalLM.from_pretrained(ckpt).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(ckpt)
+    
+    # Make sure pad token is set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    def formatting_func(example):
+        return tokenizer.apply_chat_template(
+            example["messages"],
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+
+    # First, check what template produces
+    sample_formatted = formatting_func(train_rows[0])
+    print("Sample formatted text:")
+    print(repr(sample_formatted))
+    
+    # Set response template based on your chat format
+    response_template = "<|im_start|>assistant\n"  # Adjust if needed!
+    
+    collator = DataCollatorForCompletionOnlyLM(
+        tokenizer=tokenizer,
+        response_template=response_template,
+    )
+
     training_args = SFTConfig(
         output_dir="./sft_output_stage2",
         num_train_epochs=5,
@@ -58,28 +102,29 @@ def main():
         logging_steps=10,
         save_steps=500,
         eval_strategy="steps",
-        eval_steps=100
+        eval_steps=100,
     )
 
-    # Initialize trainer
     trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
         processing_class=tokenizer,
+        formatting_func=formatting_func,
+        data_collator=collator,
     )
-    
-    # ---- Sanity check: are labels masked correctly? ----
+
+    # Sanity check
     batch = next(iter(trainer.get_train_dataloader()))
     ids = batch["input_ids"][0]
     labels = batch["labels"][0]
-    print("First ~80 token/label pairs:")
+    print("\nFirst ~80 token/label pairs:")
     for tid, lab in zip(ids[:80], labels[:80]):
         print(repr(tokenizer.decode([tid])), lab.item())
-        
-    # Start training
+
     trainer.train()
+
 
 if __name__ == "__main__":
     main()
