@@ -513,11 +513,11 @@ class SelfConsistencyPipeline(RouterPipeline):
         return final_outputs
 
 
-class OurPipeline(BasePipeline):
+class OurPipeline(MultiModelRouterPipeline):
     """
-    TODO: implement your own pipeline by extending BasePipeline
-    1. You can override any method in BasePipeline to customize the pipeline
-    2. If you would like to use a router-based pipeline, you need to implement the _router function and train your own router, You can not use the task type to route the pipeline as shown in the RouterPipeline
+    Our pipeline implementation using MultiModelRouterPipeline.
+    Routes questions to task-specific models configured in model_config.py.
     """
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = None):
+        # model_name is ignored - uses MODEL_MAP from model_config.py
         super().__init__(model_name)

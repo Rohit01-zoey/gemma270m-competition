@@ -31,8 +31,8 @@ def main():
     # Configure trainer
     training_args = SFTConfig(
         output_dir="./sft_output",
-        max_steps=20000,
-        per_device_train_batch_size=4,
+        # max_steps=20000,
+        per_device_train_batch_size=16,
         learning_rate=5e-5,
         logging_steps=10,
         save_steps=5000,
