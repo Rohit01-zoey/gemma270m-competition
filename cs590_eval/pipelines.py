@@ -7,6 +7,10 @@ from tqdm import tqdm
 from collections import Counter
 from rule_based_router import route_question
 from model_config import MODEL_MAP
+import numpy as np
+import pickle
+from rank_bm25 import BM25Okapi
+import os
 
 # try:
 #     from vllm import LLM, SamplingParams
@@ -85,6 +89,43 @@ def _batched_generate_hf(
 #     outputs = model.generate(prompts, sampling_params)
 #     return [o.outputs[0].text.strip() for o in outputs]
 
+# ---------------- RAG helpers ----------------
+def tokenize_for_bm25(text: str) -> List[str]:
+    """Tokenize text for BM25 (same as eval_rag.py)"""
+    text = re.sub(r'[^\w\s]', ' ', text.lower())
+    tokens = text.split()
+    return [token for token in tokens if len(token) > 1]
+
+
+def load_msmarco_index(cache_file: str = None):
+    if cache_file is None:
+        cache_file = os.path.expanduser("~/gemma270m-competition/msmarco_full_bm25_nostem.pkl")
+    
+    # Download if missing
+    if not os.path.exists(cache_file):
+        print(f"MS MARCO index not found at {cache_file}")
+        print("Downloading from Box (5.6 GB)...")
+        
+        # Create directory
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        
+        # Download using wget
+        box_url = "https://duke.box.com/shared/static/d7vwerqrizqf7n29pykgm36gfq4b513a.pkl"
+        result = os.system(f'wget -O "{cache_file}" "{box_url}"')
+        
+        if result != 0 or not os.path.exists(cache_file):
+            raise FileNotFoundError(
+                f"Download failed. Please manually download from:\n"
+                f"https://duke.box.com/s/d7vwerqrizqf7n29pykgm36gfq4b513a"
+            )
+        
+        print("Download complete!")
+    
+    print(f"Loading MS MARCO index from {cache_file}...")
+    with open(cache_file, 'rb') as f:
+        data = pickle.load(f)
+    print(f"Loaded {len(data['corpus']):,} passages")
+    return data
 
 # ---------------- logic-only processors ----------------
 class ProcessLogic:
@@ -123,6 +164,48 @@ class FactualQAProcessor(ProcessLogic):
     def postprocess(self, outputs: List[str], items: List[Dict[str, Any]]) -> List[str]:
         cleaned = super().postprocess(outputs, items)
         return [c.split("\n")[0].strip() for c in cleaned]
+
+class RAGFactualQAProcessor(FactualQAProcessor):
+    """FactualQA processor with RAG retrieval for TriviaQA"""
+    def __init__(self, corpus, bm25, top_k: int = 3, max_context_chars: int = 4000):
+        super().__init__(few_shot=0)
+        self.corpus = corpus
+        self.bm25 = bm25
+        self.top_k = top_k
+        self.max_context_chars = max_context_chars
+    
+    def retrieve(self, query: str) -> str:
+        """Retrieve relevant passages using BM25"""
+        query = query.strip()
+        if not query:
+            return ""
+        
+        tokens = tokenize_for_bm25(query)
+        scores = self.bm25.get_scores(tokens)
+        top_idx = np.argsort(scores)[::-1][:self.top_k]
+        passages = [self.corpus[i] for i in top_idx]
+        context = "\n\n".join(passages)
+        
+        if len(context) > self.max_context_chars:
+            context = context[:self.max_context_chars]
+        
+        return context
+    
+    def preprocess(self, items: List[Dict[str, Any]], tokenizer: PreTrainedTokenizerBase) -> List[str]:
+        prompts: List[str] = []
+        for it in items:
+            q = it.get("question") or it.get("query") or ""
+            
+            # Retrieve context
+            context = self.retrieve(q)
+            
+            # Format prompt with context
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context if it's relevant. If the context doesn't contain relevant information, answer based on your own knowledge. Keep your answer concise."},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {q}\nAnswer:"}
+            ]
+            prompts.append(apply_instruct_template(messages, tokenizer))
+        return prompts
 
 
 class ReasoningProcessor(ProcessLogic):
@@ -282,6 +365,19 @@ class MultiModelRouterPipeline(BasePipeline):
             self.task_tokenizers[task_type] = AutoTokenizer.from_pretrained(model_path)
             if self.task_tokenizers[task_type].pad_token is None:
                 self.task_tokenizers[task_type].pad_token = self.task_tokenizers[task_type].eos_token
+        
+        print("\nLoading RAG components for TriviaQA...")
+        self.rag_corpus = None
+        self.rag_bm25 = None
+        try:
+            data = load_msmarco_index()
+            self.rag_corpus = data['corpus']
+            self.rag_bm25 = data['bm25']
+            print(f"RAG loaded: {len(self.rag_corpus):,} passages")
+        except FileNotFoundError as e:
+            print(f"WARNING: Could not load RAG index")
+            print(f"{e}")
+            print(f"TriviaQA will use standard FactualQA processor")
 
     def _router(self, item: Dict[str, Any]) -> str:
         """Route questions to task type using rule-based router."""
@@ -321,10 +417,19 @@ class MultiModelRouterPipeline(BasePipeline):
 
         # Default logic map
         logic_map = {
-            "factual_qa": FactualQAProcessor(),
+            #"factual_qa": FactualQAProcessor(),
             "reasoning": ReasoningProcessor(),
             "instruction_following": InstructionFollowingProcessor(),
         }
+
+        if self.rag_corpus is not None and self.rag_bm25 is not None:
+            logic_map["factual_qa"] = RAGFactualQAProcessor(
+                self.rag_corpus, 
+                self.rag_bm25, 
+                top_k=3
+            )
+        else:
+            logic_map["factual_qa"] = FactualQAProcessor()
 
         outputs: List[Optional[str]] = [None] * len(items)
 
