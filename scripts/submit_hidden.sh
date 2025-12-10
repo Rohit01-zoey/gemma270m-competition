@@ -6,7 +6,8 @@ cd cs590_eval
 
 python submit.py \
   --pipeline our \
-  --seeds 1,2,3,4,5 \
+  --seeds 1,2,3 \
   --data_size 1000 \
+  --submit_hidden
 
-echo "Done! Upload submissions.zip to Gradescope"
+echo "Done! Upload submissions_hidden.zip to Gradescope"

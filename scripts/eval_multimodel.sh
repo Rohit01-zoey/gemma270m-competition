@@ -31,7 +31,7 @@ cd cs590_eval
 echo ">>> Running ARC-C evaluation..."
 python eval_multimodel.py \
   --task arc-c \
-  --out_dir outputs_multimodel_1207_01/ \
+  --out_dir outputs_multimodel_1208_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
@@ -41,7 +41,7 @@ echo ""
 echo ">>> Running TriviaQA evaluation..."
 python eval_multimodel.py \
   --task triviaqa \
-  --out_dir outputs_multimodel_1207_01/ \
+  --out_dir outputs_multimodel_1208_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
@@ -51,7 +51,7 @@ echo ""
 echo ">>> Running IFEval evaluation..."
 python eval_multimodel.py \
   --task ifeval \
-  --out_dir outputs_multimodel_1207_01/ \
+  --out_dir outputs_multimodel_1208_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \

@@ -1,0 +1,4 @@
+dataset,expected_type,total,correct,accuracy_%,factual_qa,reasoning,instruction_following
+TriviaQA,factual_qa,1000,982,98.2,982,16,2
+ARC-C,reasoning,1000,983,98.3,16,983,1
+IFEval,instruction_following,541,469,86.69,47,25,469
