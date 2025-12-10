@@ -173,32 +173,67 @@ class RAGFactualQAProcessor(FactualQAProcessor):
         self.bm25 = bm25
         self.top_k = top_k
         self.max_context_chars = max_context_chars
+        # Store retrieval info for inspection
+        self.retrieval_cache = {}
     
     def retrieve(self, query: str) -> str:
         """Retrieve relevant passages using BM25"""
         query = query.strip()
         if not query:
             return ""
-        
+
         tokens = tokenize_for_bm25(query)
         scores = self.bm25.get_scores(tokens)
         top_idx = np.argsort(scores)[::-1][:self.top_k]
         passages = [self.corpus[i] for i in top_idx]
         context = "\n\n".join(passages)
-        
+
         if len(context) > self.max_context_chars:
             context = context[:self.max_context_chars]
-        
+
         return context
+
+    def retrieve_with_indices(self, query: str):
+        """Retrieve relevant passages with indices and scores for inspection"""
+        query = query.strip()
+        if not query:
+            return {"context": "", "indices": [], "scores": [], "passages": [], "query_tokens": []}
+
+        tokens = tokenize_for_bm25(query)
+        scores = self.bm25.get_scores(tokens)
+        top_idx = np.argsort(scores)[::-1][:self.top_k]
+        passages = [self.corpus[i] for i in top_idx]
+        context = "\n\n".join(passages)
+
+        if len(context) > self.max_context_chars:
+            context = context[:self.max_context_chars]
+
+        return {
+            "context": context,
+            "indices": top_idx.tolist(),
+            "scores": scores[top_idx].tolist(),
+            "passages": passages,
+            "query_tokens": tokens
+        }
     
     def preprocess(self, items: List[Dict[str, Any]], tokenizer: PreTrainedTokenizerBase) -> List[str]:
         prompts: List[str] = []
         for it in items:
             q = it.get("question") or it.get("query") or ""
-            
-            # Retrieve context
-            context = self.retrieve(q)
-            
+            item_id = q  # Some has repetive IDs, so use question text as key
+
+            # Check if already cached, otherwise retrieve
+            if item_id in self.retrieval_cache:
+                # print("Using cached retrieval for item_id:", item_id)
+                retrieval_info = self.retrieval_cache[item_id]
+            else:
+                # Retrieve context with indices and scores
+                retrieval_info = self.retrieve_with_indices(q)
+                # Store retrieval info for later inspection
+                self.retrieval_cache[item_id] = retrieval_info
+
+            context = retrieval_info["context"]
+
             # Format prompt with context
             messages = [
                 {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context if it's relevant. If the context doesn't contain relevant information, answer based on your own knowledge. Keep your answer concise."},
@@ -369,10 +404,18 @@ class MultiModelRouterPipeline(BasePipeline):
         print("\nLoading RAG components for TriviaQA...")
         self.rag_corpus = None
         self.rag_bm25 = None
+        self.retrieval_cache = {}  # Store retrieval info for inspection
+        self.rag_processor = None  # Reusable RAG processor
         try:
             data = load_msmarco_index()
             self.rag_corpus = data['corpus']
             self.rag_bm25 = data['bm25']
+            # Create RAG processor once to reuse across multiple runs
+            self.rag_processor = RAGFactualQAProcessor(
+                self.rag_corpus,
+                self.rag_bm25,
+                top_k=3
+            )
             print(f"RAG loaded: {len(self.rag_corpus):,} passages")
         except FileNotFoundError as e:
             print(f"WARNING: Could not load RAG index")
@@ -422,12 +465,9 @@ class MultiModelRouterPipeline(BasePipeline):
             "instruction_following": InstructionFollowingProcessor(),
         }
 
-        if self.rag_corpus is not None and self.rag_bm25 is not None:
-            logic_map["factual_qa"] = RAGFactualQAProcessor(
-                self.rag_corpus, 
-                self.rag_bm25, 
-                top_k=3
-            )
+        # Reuse the same RAG processor instance to maintain cache across runs
+        if self.rag_processor is not None:
+            logic_map["factual_qa"] = self.rag_processor
         else:
             logic_map["factual_qa"] = FactualQAProcessor()
 
@@ -456,6 +496,10 @@ class MultiModelRouterPipeline(BasePipeline):
 
             for i, p in zip(idxs, preds):
                 outputs[i] = p
+
+            # Copy retrieval cache from RAG processor if available
+            if isinstance(task_logic, RAGFactualQAProcessor) and hasattr(task_logic, 'retrieval_cache'):
+                self.retrieval_cache.update(task_logic.retrieval_cache)
 
         return [o if o is not None else "" for o in outputs]
 

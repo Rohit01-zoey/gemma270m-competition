@@ -7,13 +7,15 @@
 #SBATCH --mem=240G
 #SBATCH --time=10:00:00
 
-# Activate conda environment
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate gemma270m
+# # Activate conda environment
+# source ~/miniconda3/etc/profile.d/conda.sh
+# conda activate gemma270m
 
-# Go to eval directory
-cd ~/gemma270m-competition/cs590_eval
+# # Go to eval directory
+# cd ~/gemma270m-competition/cs590_eval
 
+
+cd cs590_eval
 
 echo "========================================"
 echo "RAG Evaluation Started"

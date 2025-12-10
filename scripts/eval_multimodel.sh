@@ -12,7 +12,7 @@ set -e  # Exit on error
 #####################################
 BATCH_SIZE=512
 MAX_NEW_TOKENS=512
-DATA_SIZE=-1 # -1 for full dataset
+DATA_SIZE=1000 # -1 for full dataset
 
 #####################################
 # Run evaluations
@@ -31,7 +31,7 @@ cd cs590_eval
 echo ">>> Running ARC-C evaluation..."
 python eval_multimodel.py \
   --task arc-c \
-  --out_dir outputs_multimodel_1208_01/ \
+  --out_dir outputs_multimodel_1209_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
@@ -41,7 +41,7 @@ echo ""
 echo ">>> Running TriviaQA evaluation..."
 python eval_multimodel.py \
   --task triviaqa \
-  --out_dir outputs_multimodel_1208_01/ \
+  --out_dir outputs_multimodel_1209_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
@@ -51,7 +51,7 @@ echo ""
 echo ">>> Running IFEval evaluation..."
 python eval_multimodel.py \
   --task ifeval \
-  --out_dir outputs_multimodel_1208_01/ \
+  --out_dir outputs_multimodel_1209_01/ \
   --data-size "$DATA_SIZE" \
   --batch-size "$BATCH_SIZE" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
