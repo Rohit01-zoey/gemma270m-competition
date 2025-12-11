@@ -195,7 +195,7 @@ class RAGFactualQAProcessor(FactualQAProcessor):
         return context
 
     def retrieve_with_indices(self, query: str):
-        """Retrieve relevant passages with indices and scores for inspection"""
+        #Retrieve relevant passages with indices and scores for inspection
         query = query.strip()
         if not query:
             return {"context": "", "indices": [], "scores": [], "passages": [], "query_tokens": []}
