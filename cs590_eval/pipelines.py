@@ -11,6 +11,7 @@ import numpy as np
 import pickle
 from rank_bm25 import BM25Okapi
 import os
+import time
 
 # try:
 #     from vllm import LLM, SamplingParams
@@ -164,9 +165,9 @@ class FactualQAProcessor(ProcessLogic):
     def postprocess(self, outputs: List[str], items: List[Dict[str, Any]]) -> List[str]:
         cleaned = super().postprocess(outputs, items)
         return [c.split("\n")[0].strip() for c in cleaned]
-
+"""
 class RAGFactualQAProcessor(FactualQAProcessor):
-    """FactualQA processor with RAG retrieval for TriviaQA"""
+    #FactualQA processor with RAG retrieval for TriviaQA
     def __init__(self, corpus, bm25, top_k: int = 3, max_context_chars: int = 4000):
         super().__init__(few_shot=0)
         self.corpus = corpus
@@ -177,7 +178,7 @@ class RAGFactualQAProcessor(FactualQAProcessor):
         self.retrieval_cache = {}
     
     def retrieve(self, query: str) -> str:
-        """Retrieve relevant passages using BM25"""
+        #Retrieve relevant passages using BM25
         query = query.strip()
         if not query:
             return ""
@@ -241,7 +242,96 @@ class RAGFactualQAProcessor(FactualQAProcessor):
             ]
             prompts.append(apply_instruct_template(messages, tokenizer))
         return prompts
+"""
 
+#with caching
+class RAGFactualQAProcessor(FactualQAProcessor):
+    def __init__(self, corpus, bm25, top_k: int = 3, max_context_chars: int = 4000, cache_file: str = None):
+        super().__init__(few_shot=0)
+        self.corpus = corpus
+        self.bm25 = bm25
+        self.top_k = top_k
+        self.max_context_chars = max_context_chars
+        
+        if cache_file is None:
+            cache_file = os.path.expanduser("~/gemma270m-competition/rag_retrieval_hidden_cache.pkl")
+        self.cache_file = cache_file
+        self.cache = {}
+        self.cache_dirty = False
+        
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'rb') as f:
+                    self.cache = pickle.load(f)
+                print(f"Loaded {len(self.cache):,} cached retrievals")
+            except:
+                pass
+    
+    def retrieve(self, query: str) -> str:
+        query = query.strip()
+        if not query:
+            return ""
+        
+        if query in self.cache:
+            return self.cache[query]
+        
+        tokens = tokenize_for_bm25(query)
+        scores = self.bm25.get_scores(tokens)
+        top_idx = np.argsort(scores)[::-1][:self.top_k]
+        passages = [self.corpus[i] for i in top_idx]
+        context = "\n\n".join(passages)
+        
+        if len(context) > self.max_context_chars:
+            context = context[:self.max_context_chars]
+        
+        self.cache[query] = context
+        self.cache_dirty = True
+        return context
+
+    def preprocess(self, items: List[Dict[str, Any]], tokenizer: PreTrainedTokenizerBase) -> List[str]:
+    
+        questions = [it.get("question") or it.get("query") or "" for it in items]
+        
+        cache_hits = sum(1 for q in questions if q.strip() in self.cache)
+        cache_misses = len(questions) - cache_hits
+        
+        print(f"\n{'='*60}", flush=True)
+        print(f"RAG Preprocessing {len(items)} items", flush=True)
+        print(f"Cache: {cache_hits} hits, {cache_misses} misses", flush=True)
+        print(f"{'='*60}", flush=True)
+        
+        t0 = time.time()
+        prompts: List[str] = []
+        
+        for i, it in enumerate(items):
+            if i > 0 and i % 50 == 0:
+                elapsed = time.time() - t0
+                avg = elapsed / i
+                remaining = avg * (len(questions) - i)
+                print(f"Progress: {i}/{len(questions)} ({i/len(questions)*100:.1f}%) - "
+                    f"Elapsed: {elapsed/60:.1f}min, ETA: {remaining/60:.1f}min", flush=True)
+            
+            q = it.get("question") or it.get("query") or ""
+            context = self.retrieve(q)
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context if it's relevant. If the context doesn't contain relevant information, answer based on your own knowledge. Keep your answer concise."},
+                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {q}\nAnswer:"}
+            ]
+            prompts.append(apply_instruct_template(messages, tokenizer))
+        
+        t1 = time.time()
+        print(f"\nRetrieval complete! Total time: {(t1-t0)/60:.1f} minutes", flush=True)
+        print(f"Average per item: {(t1-t0)/len(items):.2f}s", flush=True)
+        
+        if self.cache_dirty:
+            print(f"Saving {len(self.cache):,} retrievals to {self.cache_file}...", flush=True)
+            with open(self.cache_file, 'wb') as f:
+                pickle.dump(self.cache, f)
+            self.cache_dirty = False
+            print("Cache saved!", flush=True)
+        
+        print(f"{'='*60}\n", flush=True)
+        return prompts
 
 class ReasoningProcessor(ProcessLogic):
     def preprocess(self, items: List[Dict[str, Any]], tokenizer: PreTrainedTokenizerBase) -> List[str]:
