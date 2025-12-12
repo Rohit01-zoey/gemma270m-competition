@@ -254,7 +254,7 @@ class RAGFactualQAProcessor(FactualQAProcessor):
         self.max_context_chars = max_context_chars
         
         if cache_file is None:
-            cache_file = os.path.expanduser("~/gemma270m-competition/rag_retrieval_hidden_cache.pkl")
+            cache_file = "/usr/xtmp/fj52/590_LLM_project/gemma270m-competition/rag_retrieval_cache_after_routing.pkl"
         self.cache_file = cache_file
         self.cache = {}
         self.cache_dirty = False
