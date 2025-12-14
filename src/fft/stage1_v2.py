@@ -12,23 +12,18 @@ def convert_to_chatml(example):
     }
 
 def main():
-    # Set device
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Load dataset
-    # dataset = load_dataset("HuggingFaceTB/smoltalk", "all")
     dataset = load_dataset("HuggingFaceTB/smol-smoltalk")
 
-    # Configure model and tokenizer
     model_name = "google/gemma-3-270m"
     model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path=model_name).to(
         device
     )
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path=model_name)
-    # Setup chat template
+
     model, tokenizer = setup_chat_format(model=model, tokenizer=tokenizer)
 
-    # Configure trainer
     training_args = SFTConfig(
         output_dir="./sft_output",
         # max_steps=20000,
@@ -40,7 +35,6 @@ def main():
         eval_steps=1000,
     )
 
-    # Initialize trainer
     trainer = SFTTrainer(
         model=model,
         args=training_args,
@@ -49,7 +43,6 @@ def main():
         processing_class=tokenizer,
     )
 
-    # Start training
     trainer.train()
 
 if __name__ == "__main__":

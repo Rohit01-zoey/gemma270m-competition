@@ -1,12 +1,3 @@
-# src/fft/data/stage2_data.py
-
-# trivia style 
-#   - triviaqa
-# mcq
-#   - ARC-C
-#   - Arc easy
-#   - MMLU
-
 from __future__ import annotations
 import json
 import random
@@ -15,7 +6,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 from datasets import load_dataset
-
 
 Record = Dict[str, Any]
 import random
@@ -30,8 +20,6 @@ def format_question(raw_q: str, rng: random.Random) -> str:
     tpl = rng.choice(TEMPLATES)
     return tpl.format(q=raw_q.strip())
 
-
-# ---------------- Basic IO helpers ----------------
 def format_choices(choice_list):
     letters = [chr(ord("A") + i) for i in range(len(choice_list))]
     return "\n".join(f"{letters[i]}. {choice_list[i]}" for i in range(len(choice_list)))
@@ -44,7 +32,6 @@ def save_jsonl(path: str | Path, rows: List[Record]) -> None:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-
 def split_train_eval(
     rows: List[Record],
     eval_frac: float,
@@ -56,9 +43,6 @@ def split_train_eval(
     eval_rows = rows[:n_eval]
     train_rows = rows[n_eval:]
     return train_rows, eval_rows
-
-
-# ---------------- TRIVIA / QA loaders ----------------
 
 def sample_triviaqa_unfiltered(n: int, seed: int) -> List[Record]:
     ds = load_dataset("mandarjoshi/trivia_qa", "unfiltered.nocontext", split="train")
@@ -87,7 +71,6 @@ def sample_triviaqa_unfiltered(n: int, seed: int) -> List[Record]:
         })
     print(f"[TRIVIAQA] {len(rows)} examples.")
     return rows
-
 
 def sample_mmlu(n: int, seed: int) -> List[Record]:
     ds = load_dataset("cais/mmlu", "all", split="auxiliary_train")
@@ -192,25 +175,18 @@ class Stage2DataConfig:
     eval_frac: float = 0.02
     seed: int = 42
 
-    # ~100k QA / Trivia / Reasoning
     n_trivia_qa: int = 0 # 20_000
-    n_gsm8k: int = 0 # 7_000      # NEW
-    n_mmlu: int = 0 # 20_000      # NEW
+    n_gsm8k: int = 0 # 7_000
+    n_mmlu: int = 0 # 20_000 
 
-    # ~50k ARC-style MCQ
-    n_arc_challenge: int = 16_000 # actual only ~1k
-    n_arc_easy: int = 0 # 12_000 # actual only ~2k
-
-    # ~50k IFEval / constraints
+    n_arc_challenge: int = 16_000 
+    n_arc_easy: int = 0 
     n_smol: int = 0
-
-
 
 def build_stage2_records(cfg: Stage2DataConfig) -> List[Record]:
     random.seed(cfg.seed)
     all_rows: List[Record] = []
-
-    # QA / Trivia
+    
     if cfg.n_trivia_qa>0:
         all_rows += sample_triviaqa_unfiltered(cfg.n_trivia_qa, cfg.seed)
     if cfg.n_mmlu>0:
@@ -227,7 +203,6 @@ def build_stage2_records(cfg: Stage2DataConfig) -> List[Record]:
     random.shuffle(all_rows)
     print(f"[STAGE2] total records: {len(all_rows)}")
     return all_rows
-
 
 def prepare_stage2_data(cfg: Stage2DataConfig) -> Dict[str, str]:
     """
@@ -253,9 +228,6 @@ def prepare_stage2_data(cfg: Stage2DataConfig) -> Dict[str, str]:
         "train": str(train_path),
         "eval": str(eval_path),
     }
-
-
-# ---------------- CLI entrypoint ----------------
 
 if __name__ == "__main__":
     import argparse

@@ -8,7 +8,6 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from dataclasses import dataclass
 
-# Custom collator (use this if import fails)
 @dataclass
 class DataCollatorForCompletionOnlyLM:
     tokenizer: Any
@@ -69,8 +68,7 @@ def main():
     ckpt = "/usr/xtmp/rkv6/projects/gemma270m-competition/src/fft/sft_output/checkpoint-20000"
     model = AutoModelForCausalLM.from_pretrained(ckpt).to(device)
     tokenizer = AutoTokenizer.from_pretrained(ckpt)
-    
-    # Make sure pad token is set
+
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -81,13 +79,11 @@ def main():
             add_generation_prompt=False,
         )
 
-    # First, check what template produces
     sample_formatted = formatting_func(train_rows[0])
     print("Sample formatted text:")
     print(repr(sample_formatted))
     
-    # Set response template based on your chat format
-    response_template = "<|im_start|>assistant\n"  # Adjust if needed!
+    response_template = "<|im_start|>assistant\n"
     
     collator = DataCollatorForCompletionOnlyLM(
         tokenizer=tokenizer,
@@ -115,7 +111,6 @@ def main():
         data_collator=collator,
     )
 
-    # Sanity check
     batch = next(iter(trainer.get_train_dataloader()))
     ids = batch["input_ids"][0]
     labels = batch["labels"][0]
@@ -124,7 +119,6 @@ def main():
         print(repr(tokenizer.decode([tid])), lab.item())
 
     trainer.train()
-
 
 if __name__ == "__main__":
     main()
