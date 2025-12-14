@@ -11,13 +11,12 @@ from datasets import load_dataset
 import re
 from nltk.stem import PorterStemmer
 
-# Initialize stemmer globally
+#Stemmer
 stemmer = PorterStemmer()
 
 def tokenize_for_bm25(text):
-    # Remove punctuation, keep only alphanumeric and whitespace
+    #Remove punctuation, keep only alphanumeric and whitespace
     text = re.sub(r'[^\w\s]', ' ', text.lower())
-    # Split and stem
     tokens = text.split()
     return [token for token in tokens if len(token) > 1]
     #return [stemmer.stem(token) for token in tokens if len(token) > 1]
@@ -25,7 +24,6 @@ def tokenize_for_bm25(text):
 
 def load_msmarco(num_passages: int = None):
     cache_suffix = "full" if num_passages is None else str(num_passages)
-    # IMPORTANT: Update cache filename to reflect new tokenization
     cache_file = f"/home/users/ms1254/gemma270m-competition/msmarco_{cache_suffix}_bm25_nostem.pkl"
     
     if os.path.exists(cache_file):
@@ -51,15 +49,14 @@ def load_msmarco(num_passages: int = None):
         if i % 10000 == 0 and i > 0:
             print(f"  Processed {i:,} queries, {count:,} passages...")
         
-        # Access passages correctly based on the dataset structure
         passages_dict = item['passages']
-        passage_texts = passages_dict['passage_text']  # This is a list of strings
+        passage_texts = passages_dict['passage_text']  
         
-        # Add each passage to corpus
+        #Add each passage to corpus
         for passage_text in passage_texts:
             if passage_text and passage_text.strip():
                 corpus.append(passage_text)
-                # Use improved tokenization
+
                 tokenized.append(tokenize_for_bm25(passage_text))
                 count += 1
                 
@@ -75,7 +72,7 @@ def load_msmarco(num_passages: int = None):
     with open(cache_file, 'wb') as f:
         pickle.dump(data, f)
     
-    print(f"✓ Indexed {len(corpus):,} MS MARCO passages (with stemming)")
+    print(f"Indexed {len(corpus):,} MS MARCO passages (with stemming)")
     return data
 
 
@@ -85,19 +82,19 @@ class RAGPipeline(BasePipeline):
         self.top_k = top_k
         self.max_context_chars = 4000
         
-        # Load MS MARCO
+        #Load MS MARCO
         data = load_msmarco(num_passages)
         self.corpus = data['corpus']
         self.bm25 = data['bm25']
         
-        # ADDITION: Store retrieval info for inspection
+        #Store retrieval
         self.retrieval_cache = {}
 
     def retrieve(self, query: str) -> str:
         query = query.strip()
         if not query:
             return ""
-        # Use improved tokenization (same as indexing)
+
         tokens = tokenize_for_bm25(query)
         scores = self.bm25.get_scores(tokens)
         top_idx = np.argsort(scores)[::-1][:self.top_k]
@@ -113,7 +110,7 @@ class RAGPipeline(BasePipeline):
         query = query.strip()
         if not query:
             return {"context": "", "indices": [], "scores": []}
-        # Use improved tokenization (same as indexing)
+
         tokens = tokenize_for_bm25(query)
         scores = self.bm25.get_scores(tokens)
         top_idx = np.argsort(scores)[::-1][:self.top_k]
@@ -125,8 +122,8 @@ class RAGPipeline(BasePipeline):
             "context": context, 
             "indices": top_idx.tolist(),
             "scores": scores[top_idx].tolist(),
-            "passages": passages,  # ADDITION: Include actual passage texts
-            "query_tokens": tokens  # ADDITION: Include tokenized query
+            "passages": passages,  
+            "query_tokens": tokens  
         }
 
 
@@ -139,12 +136,10 @@ class RAGFactualQAProcessor(FactualQAProcessor):
         prompts = []
         for it in items:
             q = it.get("question") or it.get("query") or ""
-            item_id = it.get("id", q)  # Use id if available, else question as key
-            
-            # MODIFICATION: Use retrieve_with_indices to get all info
+            item_id = it.get("id", q)  
+
             retrieval_info = self.rag.retrieve_with_indices(q)
-            
-            # ADDITION: Store retrieval info for later inspection
+    
             self.rag.retrieval_cache[item_id] = retrieval_info
             
             context = retrieval_info["context"]
@@ -166,12 +161,10 @@ class RAGReasoningProcessor(ReasoningProcessor):
         prompts = []
         for it in items:
             q = it.get("question", "")
-            item_id = it.get("id", q)  # Use id if available, else question as key
-            
-            # MODIFICATION: Use retrieve_with_indices to get all info
+            item_id = it.get("id", q) 
+          
             retrieval_info = self.rag.retrieve_with_indices(q)
             
-            # ADDITION: Store retrieval info for later inspection
             self.rag.retrieval_cache[item_id] = retrieval_info
             
             context = retrieval_info["context"]
@@ -209,12 +202,11 @@ def main():
 
     args = ap.parse_args()
 
-    # If --use-full-msmarco flag is set, override num_passages
     if args.use_full_msmarco:
         args.num_passages = None
         print("Using FULL MS MARCO dataset")
     elif args.num_passages is None:
-        args.num_passages = 100000  # Default to 100k if not specified
+        args.num_passages = 100000  
         print(f"Using {args.num_passages:,} MS MARCO passages (default)")
     else:
         print(f"Using {args.num_passages:,} MS MARCO passages")
@@ -224,7 +216,6 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
     
-    # MODIFIED: Use custom prefix if provided, otherwise auto-generate
     if args.output_prefix:
         filename = args.output_prefix
         print(f"Using custom output prefix: {filename}")
@@ -236,10 +227,9 @@ def main():
     preds_path = f"{args.out_dir}/{filename}_preds.jsonl"
     metrics_path = f"{args.out_dir}/{filename}_metrics.json"
 
-    # Create RAG pipeline with MS MARCO
+    #RAG pipeline 
     pipeline = RAGPipeline(args.model, top_k=args.top_k, num_passages=args.num_passages)
 
-    # Select appropriate processor
     if args.task == "triviaqa":
         logic = RAGFactualQAProcessor(pipeline)
     elif args.task == "arc-c":
@@ -247,17 +237,16 @@ def main():
     else:
         raise ValueError(f"Unknown task: {args.task}")
     
-    # Generate predictions
+    #Generate predictions
     rows = generate_rows(items, pipeline, batch_size=args.batch_size, 
                         max_new_tokens=args.max_new_tokens, logic=logic)
     
-    # ADDITION: Merge retrieval info into rows
     for row in rows:
         item_id = row.get("id", row.get("question"))
         if item_id in pipeline.retrieval_cache:
             row["retrieval_info"] = pipeline.retrieval_cache[item_id]
     
-    # Save results
+    #Save results
     _write_jsonl(preds_path, rows)
     result = score_from_rows(args.task, rows)
     

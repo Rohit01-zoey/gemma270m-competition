@@ -92,7 +92,7 @@ def _batched_generate_hf(
 
 # ---------------- RAG helpers ----------------
 def tokenize_for_bm25(text: str) -> List[str]:
-    """Tokenize text for BM25 (same as eval_rag.py)"""
+    #Tokenize text for BM25
     text = re.sub(r'[^\w\s]', ' ', text.lower())
     tokens = text.split()
     return [token for token in tokens if len(token) > 1]
@@ -102,15 +102,14 @@ def load_msmarco_index(cache_file: str = None):
     if cache_file is None:
         cache_file = os.path.expanduser("~/gemma270m-competition/msmarco_full_bm25_nostem.pkl")
     
-    # Download if missing
+    #Download if missing
     if not os.path.exists(cache_file):
         print(f"MS MARCO index not found at {cache_file}")
         print("Downloading from Box (5.6 GB)...")
-        
-        # Create directory
+
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         
-        # Download using wget
+        #Download from Box
         box_url = "https://duke.box.com/shared/static/d7vwerqrizqf7n29pykgm36gfq4b513a.pkl"
         result = os.system(f'wget -O "{cache_file}" "{box_url}"')
         
@@ -165,86 +164,9 @@ class FactualQAProcessor(ProcessLogic):
     def postprocess(self, outputs: List[str], items: List[Dict[str, Any]]) -> List[str]:
         cleaned = super().postprocess(outputs, items)
         return [c.split("\n")[0].strip() for c in cleaned]
-"""
-class RAGFactualQAProcessor(FactualQAProcessor):
-    #FactualQA processor with RAG retrieval for TriviaQA
-    def __init__(self, corpus, bm25, top_k: int = 3, max_context_chars: int = 4000):
-        super().__init__(few_shot=0)
-        self.corpus = corpus
-        self.bm25 = bm25
-        self.top_k = top_k
-        self.max_context_chars = max_context_chars
-        # Store retrieval info for inspection
-        self.retrieval_cache = {}
-    
-    def retrieve(self, query: str) -> str:
-        #Retrieve relevant passages using BM25
-        query = query.strip()
-        if not query:
-            return ""
 
-        tokens = tokenize_for_bm25(query)
-        scores = self.bm25.get_scores(tokens)
-        top_idx = np.argsort(scores)[::-1][:self.top_k]
-        passages = [self.corpus[i] for i in top_idx]
-        context = "\n\n".join(passages)
 
-        if len(context) > self.max_context_chars:
-            context = context[:self.max_context_chars]
-
-        return context
-
-    def retrieve_with_indices(self, query: str):
-        #Retrieve relevant passages with indices and scores for inspection
-        query = query.strip()
-        if not query:
-            return {"context": "", "indices": [], "scores": [], "passages": [], "query_tokens": []}
-
-        tokens = tokenize_for_bm25(query)
-        scores = self.bm25.get_scores(tokens)
-        top_idx = np.argsort(scores)[::-1][:self.top_k]
-        passages = [self.corpus[i] for i in top_idx]
-        context = "\n\n".join(passages)
-
-        if len(context) > self.max_context_chars:
-            context = context[:self.max_context_chars]
-
-        return {
-            "context": context,
-            "indices": top_idx.tolist(),
-            "scores": scores[top_idx].tolist(),
-            "passages": passages,
-            "query_tokens": tokens
-        }
-    
-    def preprocess(self, items: List[Dict[str, Any]], tokenizer: PreTrainedTokenizerBase) -> List[str]:
-        prompts: List[str] = []
-        for it in items:
-            q = it.get("question") or it.get("query") or ""
-            item_id = q  # Some has repetive IDs, so use question text as key
-
-            # Check if already cached, otherwise retrieve
-            if item_id in self.retrieval_cache:
-                # print("Using cached retrieval for item_id:", item_id)
-                retrieval_info = self.retrieval_cache[item_id]
-            else:
-                # Retrieve context with indices and scores
-                retrieval_info = self.retrieve_with_indices(q)
-                # Store retrieval info for later inspection
-                self.retrieval_cache[item_id] = retrieval_info
-
-            context = retrieval_info["context"]
-
-            # Format prompt with context
-            messages = [
-                {"role": "system", "content": "You are a helpful assistant. Answer the question based on the provided context if it's relevant. If the context doesn't contain relevant information, answer based on your own knowledge. Keep your answer concise."},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {q}\nAnswer:"}
-            ]
-            prompts.append(apply_instruct_template(messages, tokenizer))
-        return prompts
-"""
-
-#with caching
+#RAG with caching
 class RAGFactualQAProcessor(FactualQAProcessor):
     def __init__(self, corpus, bm25, top_k: int = 3, max_context_chars: int = 4000, cache_file: str = None):
         super().__init__(few_shot=0)
